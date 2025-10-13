@@ -2,6 +2,8 @@
 
 This project implements various reinforcement learning approaches for Liability Driven Investing (LDI) strategies. It includes implementations of LSTM and FCNN models, both with and without investment constraints.
 
+<img width="1901" height="954" alt="image" src="https://github.com/user-attachments/assets/76a1744b-3226-494e-a3ea-8287ca427a9c" />
+
 ## Project Structure
 
 ```
