@@ -6,11 +6,11 @@ import torch
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from ..config import (MacroFactor, VARModel, Mapping, Mortality, Census, RecFun,
+from config import (MacroFactor, VARModel, Mapping, Mortality, Census, RecFun,
                      histMF, histAR, cholMF, cholNormal, cholRecession, termmix,
                      migration, batch_size, gamma, eps_start, eps_end, eps_decay,
                      static_update, neg_multiple, n_dyn, plan_asset, planliab, employees, var, fundmap, tmpArrays, liabAll, multiple)
-from .base_model import LSTMDQN, ReplayMemory, Tensor, Transition
+from models.base_model import LSTMDQN, ReplayMemory, Tensor, Transition
 import random
 import math
 
@@ -185,10 +185,23 @@ class LSTMWithoutConstraint:
                 
     def evaluate(self, num_sims):
         """Evaluate the trained model."""
-        results = []
+        # Initialize arrays to store results
+        tsaa = [0.5, 0.5]
+        tliabArray = np.array([1, 0, planliab, 0, 0, 0])
+        tliabArray = np.append(tliabArray, np.multiply([0.5, 0.5], plan_asset))
+        tliabArray = np.append(tliabArray, np.array([plan_asset, plan_asset/planliab, plan_asset-planliab]))
+        tliabArray = np.copy(tliabArray)
+        
+        sims = []
+        sims_sim = []
+        qs = []
+        rwds = []
+        rwds_total = []
+        
         for i_sim in range(1, num_sims+1):
+            # Initialize the environment and state
             saa = [0.5, 0.5]
-            liabArray = np.array([1,0,planliab,0,0,0])
+            liabArray = np.array([1, 0, planliab, 0, 0, 0])
             liabArray = np.append(liabArray, np.multiply(saa, plan_asset))
             liabArray = np.append(liabArray, np.array([plan_asset,
                                                       plan_asset/planliab,
@@ -200,22 +213,23 @@ class LSTMWithoutConstraint:
             state = torch.from_numpy(state).view(-1, 5)
             reward_total = 0
             
-            sim_results = []
             for idyn in range(1, 41):
+                # Select and perform an action (best action, no exploration)
                 with torch.no_grad():
                     action = self.model(state.type(Tensor)).max(1)[1].view(1, 1)
+                    
                 reward, newInput, saa = self.get_reward(employees, saa, action, var, fundmap, histMF, histAR,
                                                       cholMF, cholNormal, cholRecession, newInput, tmpArrays,
-                                                      liabAll, i_sim, idyn, multiple, planliab)
+                                                      liabAll, i_sim, idyn, multiple, planliab,
+                                                      bs=True, inter="linear", extro="tar", target=0.04)
                 
                 reward_total = reward_total + reward * gamma**(idyn-1)
-                sim_results.append({
-                    'sim': i_sim,
-                    'period': idyn,
-                    'reward': float(reward),
-                    'saa': saa.tolist(),
-                    'funding_ratio': float(np.sum(newInput[6:8])/newInput[2])
-                })
+                
+                # Accumulate results
+                tsaa = np.vstack([tsaa, np.array(saa)])
+                tliabArray = np.vstack([tliabArray, np.array(newInput)])
+                
+                reward = Tensor([reward])
                 
                 if idyn == 40:
                     next_state = None
@@ -225,8 +239,15 @@ class LSTMWithoutConstraint:
                     next_state = torch.from_numpy(next_state).view(-1, 5)
                 state = next_state
                 
-            results.extend(sim_results)
+                # Store tracking data
+                sims.append(i_sim + 1)
+                qs.append(idyn + 1)
+                rwds.append(float(reward))
+                
+            rwds_total.append(reward_total)
+            sims_sim.append(i_sim)
+            
             if i_sim % 50 == 49:
                 print(f"Simulation: {i_sim+1}")
                 
-        return results
+        return tliabArray, tsaa, sims, qs, rwds, rwds_total, sims_sim

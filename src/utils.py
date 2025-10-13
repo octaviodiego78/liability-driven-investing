@@ -12,12 +12,20 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from pathlib import Path
 
-from . import config
-from .config import (VARModel, Mapping, Mortality, Census, histMF, histAR, cholMF, 
+import config
+from config import (VARModel, Mapping, Mortality, Census, histMF, histAR, cholMF, 
                     cholNormal, cholRecession, termmix, migration, RecFun, scale, lumpSumProb, lumpSumDR, valuationDate)
-from .config import (fMI, mMI, salaryGr, salaryAvgPeriod, benefitRate, COLA, maxCOLA, salaryMultiple, gender, salary, retireDate, weight, occupation)
+from config import (fMI, mMI, salaryGr, salaryAvgPeriod, benefitRate, COLA, maxCOLA, salaryMultiple, gender, salary, retireDate, weight, occupation)
 
 
+
+# Data Loading
+def load_data():
+    """
+    Load and prepare data for experiments.
+    Note: Data is loaded in config.py, so this function is mainly for compatibility.
+    """
+    return {}
 
 # Visualization Functions
 def plot_model_comparison(results_dict, column_name, output_dir):
@@ -41,11 +49,35 @@ def plot_model_comparison(results_dict, column_name, output_dir):
     
     output_path = output_dir / f'{column_name}_comparison.html'
     pio.write_html(fig, str(output_path))
-    print(f"Plot saved as '{output_path}'")
+    
+    # Also save as PNG for README
+    png_path = output_dir / f'{column_name}_comparison.png'
+    pio.write_image(fig, str(png_path), width=1200, height=800)
+    
+    print(f"Plot saved as '{output_path}' and '{png_path}'")
 
 def save_results(results, model_name, output_dir):
     """Save model results to CSV."""
+    # results is tliabArray from the evaluate method
+    # Convert to DataFrame - the array columns match the original structure
     df = pd.DataFrame(results)
+    
+    # Add column names based on the original format
+    # Columns: id, scn, liability value, plan cost, accrued benefit payment, 
+    # projected benefit payment, AA-rated bond investment, public equity investment,
+    # total asset value, funding ratio, funding surplus
+    column_names = [
+        'id', 'scn', 'liability_value', 'plan_cost', 
+        'accrued_benefit_payment', 'projected_benefit_payment',
+        'AA_rated_bond_investment', 'public_equity_investment',
+        'total_asset_value', 'funding_ratio', 'funding_surplus'
+    ]
+    
+    df.columns = column_names
+    
+    # Extract period from the results (this should match scn column)
+    df['period'] = df['scn']
+    
     output_path = output_dir / f'{model_name}_results.csv'
     df.to_csv(output_path, index=False)
     print(f"Results saved to '{output_path}'")
@@ -57,8 +89,9 @@ def run_experiment(model_class, data, num_episodes, num_sims):
     print(f"Training {model.__class__.__name__}...")
     model.train(num_episodes, num_sims)
     print("Evaluating model...")
-    results = model.evaluate(config.n_sim)
-    return results
+    # evaluate now returns: tliabArray, tsaa, sims, qs, rwds, rwds_total, sims_sim
+    tliabArray, tsaa, sims, qs, rwds, rwds_total, sims_sim = model.evaluate(config.n_sim)
+    return tliabArray
 
 # Core Financial Functions
 def recession(fun, vals):
