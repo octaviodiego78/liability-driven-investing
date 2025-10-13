@@ -16,6 +16,8 @@ from models.fcnn_c import FCNNWithConstraint
 from models.fcnn_nc import FCNNWithoutConstraint
 from models.lstm_c import LSTMWithConstraint
 from models.lstm_nc import LSTMWithoutConstraint
+from models.ppo_model import PPOModel
+from models.a2c_model import A2CModel
 from utils import load_data, run_experiment, save_results, plot_model_comparison
 
 def main():
@@ -26,8 +28,10 @@ def main():
     # Create subdirectories for organization
     data_dir = output_dir / 'data'
     figs_dir = output_dir / 'figs'
+    models_dir = output_dir / 'models'
     data_dir.mkdir(parents=True, exist_ok=True)
     figs_dir.mkdir(parents=True, exist_ok=True)
+    models_dir.mkdir(parents=True, exist_ok=True)
     
     # Load data
     print("Loading data...")
@@ -38,12 +42,14 @@ def main():
         'fcnn_with_constraints': FCNNWithConstraint,
         'fcnn_without_constraints': FCNNWithoutConstraint,
         'lstm_with_constraints': LSTMWithConstraint,
-        'lstm_without_constraints': LSTMWithoutConstraint
+        'lstm_without_constraints': LSTMWithoutConstraint,
+        'ppo': PPOModel,
+        'a2c': A2CModel
     }
     
     results = {}
     for model_name, model_class in models.items():
-        print(f"\nRunning {model_name}...")
+        print(f"Running {model_name}...")
         model_results = run_experiment(model_class, data, num_episodes=100, num_sims=800)
         results_df = save_results(model_results, model_name, data_dir)
         results[model_name] = results_df
@@ -60,7 +66,9 @@ def main():
     for column in plot_columns:
         plot_model_comparison(results, column, figs_dir)
     
-    print("\nAll experiments completed successfully!")
+    print("\n" + "="*60)
+    print("All experiments completed successfully!")
+    print("="*60)
 
 if __name__ == '__main__':
     main()
