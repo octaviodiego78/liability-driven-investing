@@ -13,18 +13,34 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from environments.ldi_env import LDIEnvironment
+from environments.ldi_env import (
+    LDIEnvironment,
+    LDIContinuousEnvironment,
+    LDIWideDiscreteEnvironment,
+)
 from config import plan_asset, planliab, n_sim, gamma
 
 
-class PPOModel:
+class BasePPOModel:
     """
-    Proximal Policy Optimization (PPO) model for LDI.
-    Uses stable-baselines3 implementation with the shared LDI environment.
+    Shared functionality for PPO-based models operating on the LDI environments.
     """
     
-    def __init__(self, n_envs=4, learning_rate=3e-4, n_steps=2048, 
-                 batch_size=64, n_epochs=10, verbose=1):
+    def __init__(
+        self,
+        *,
+        environment_cls,
+        model_path,
+        model_label,
+        tensorboard_log,
+        n_envs=4,
+        learning_rate=3e-4,
+        n_steps=2048,
+        batch_size=64,
+        n_epochs=10,
+        verbose=1,
+        max_steps=40
+    ):
         """
         Initialize PPO model.
         
@@ -35,13 +51,22 @@ class PPOModel:
             batch_size: Minibatch size
             n_epochs: Number of epochs when optimizing the surrogate loss
             verbose: Verbosity level (0=none, 1=info, 2=debug)
+            environment_cls: Environment class to instantiate for training and evaluation
+            model_path: Relative path (under output/models) for saving the model
+            model_label: Human-readable label for logging
+            tensorboard_log: Directory for tensorboard logs
+            max_steps: Number of steps per episode
         """
         self.n_envs = n_envs
         self.verbose = verbose
-        
+        self.max_steps = max_steps
+        self.environment_cls = environment_cls
+        self.model_label = model_label
+        self.model_path = Path('output/models') / model_path
+
         # Create vectorized environment for training
         env = make_vec_env(
-            lambda: LDIEnvironment(sim_id=1, max_steps=40),
+            lambda: environment_cls(sim_id=1, max_steps=self.max_steps),
             n_envs=n_envs,
             vec_env_cls=SubprocVecEnv
         )
@@ -59,8 +84,9 @@ class PPOModel:
             gamma=gamma,
             verbose=verbose,
             device="cpu",  # Use CPU for better performance with MLP
-            tensorboard_log="./logs/ppo_tensorboard/"
+            tensorboard_log=tensorboard_log
         )
+        self.model_path.parent.mkdir(parents=True, exist_ok=True)
     
     def train(self, num_episodes, num_sims):
         """
@@ -71,21 +97,17 @@ class PPOModel:
             num_sims: Number of simulations (used for compatibility)
         """
         # Convert episodes to timesteps (each episode has 40 steps)
-        total_timesteps = num_episodes * 40
+        total_timesteps = num_episodes * self.max_steps
         
-        print(f"Training PPO for {total_timesteps} timesteps ({num_episodes} episodes)...")
+        print(f"Training {self.model_label} for {total_timesteps} timesteps ({num_episodes} episodes)...")
         self.model.learn(
             total_timesteps=total_timesteps,
             progress_bar=True
         )
         
-        # Create output directory if it doesn't exist
-        output_dir = Path('output/models')
-        output_dir.mkdir(parents=True, exist_ok=True)
-        
         # Save the trained model
-        self.model.save("output/models/ppo_ldi_model")
-        print("Model saved as 'output/models/ppo_ldi_model.zip'")
+        self.model.save(str(self.model_path))
+        print(f"Model saved as '{self.model_path}.zip'")
     
     def evaluate(self, num_sims):
         """
@@ -117,7 +139,7 @@ class PPOModel:
         # Run evaluation for each simulation
         for i_sim in range(1, num_sims + 1):
             # Create environment for this simulation
-            eval_env = LDIEnvironment(sim_id=i_sim, max_steps=40)
+            eval_env = self.environment_cls(sim_id=i_sim, max_steps=self.max_steps)
             obs, _ = eval_env.reset()
             
             reward_total = 0
@@ -149,4 +171,94 @@ class PPOModel:
                 print(f"Simulation: {i_sim}/{num_sims}")
         
         return tliabArray, tsaa, sims, qs, rwds, rwds_total, sims_sim
+
+
+class PPOModel(BasePPOModel):
+    """
+    Proximal Policy Optimization (PPO) model using the discrete-action LDI environment.
+    """
+    
+    def __init__(
+        self,
+        n_envs=4,
+        learning_rate=3e-4,
+        n_steps=2048,
+        batch_size=64,
+        n_epochs=10,
+        verbose=1,
+        max_steps=40
+    ):
+        super().__init__(
+            environment_cls=LDIEnvironment,
+            model_path="ppo_ldi_model",
+            model_label="PPO",
+            tensorboard_log="./logs/ppo_tensorboard/",
+            n_envs=n_envs,
+            learning_rate=learning_rate,
+            n_steps=n_steps,
+            batch_size=batch_size,
+            n_epochs=n_epochs,
+            verbose=verbose,
+            max_steps=max_steps
+        )
+
+
+class PPOContinuousModel(BasePPOModel):
+    """
+    PPO model variant that operates on the continuous-action LDI environment.
+    """
+    
+    def __init__(
+        self,
+        n_envs=4,
+        learning_rate=3e-4,
+        n_steps=2048,
+        batch_size=64,
+        n_epochs=10,
+        verbose=1,
+        max_steps=40
+    ):
+        super().__init__(
+            environment_cls=LDIContinuousEnvironment,
+            model_path="ppo_continuous_ldi_model",
+            model_label="PPO (continuous)",
+            tensorboard_log="./logs/ppo_continuous_tensorboard/",
+            n_envs=n_envs,
+            learning_rate=learning_rate,
+            n_steps=n_steps,
+            batch_size=batch_size,
+            n_epochs=n_epochs,
+            verbose=verbose,
+            max_steps=max_steps
+        )
+
+
+class PPOWideDiscreteModel(BasePPOModel):
+    """
+    PPO variant utilizing the wide-range discrete action environment.
+    """
+    
+    def __init__(
+        self,
+        n_envs=4,
+        learning_rate=3e-4,
+        n_steps=2048,
+        batch_size=64,
+        n_epochs=10,
+        verbose=1,
+        max_steps=40
+    ):
+        super().__init__(
+            environment_cls=LDIWideDiscreteEnvironment,
+            model_path="ppo_wide_discrete_ldi_model",
+            model_label="PPO (wide discrete)",
+            tensorboard_log="./logs/ppo_wide_discrete_tensorboard/",
+            n_envs=n_envs,
+            learning_rate=learning_rate,
+            n_steps=n_steps,
+            batch_size=batch_size,
+            n_epochs=n_epochs,
+            verbose=verbose,
+            max_steps=max_steps
+        )
 
