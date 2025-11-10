@@ -274,3 +274,179 @@ class LDIEnvironment(gym.Env):
         """
         self.sim_id = sim_id
 
+
+class LDIContinuousEnvironment(LDIEnvironment):
+    """
+    Continuous-action variant of the LDI environment.
+    
+    The agent selects target allocations for bonds and equities directly.
+    Actions are normalized to ensure the allocations sum to one and remain
+    within the [0, 1] interval for each asset class.
+    """
+    
+    def __init__(self, sim_id=1, max_steps=40):
+        super().__init__(sim_id=sim_id, max_steps=max_steps)
+        self.action_space = spaces.Box(
+            low=np.array([0.0, 0.0], dtype=np.float32),
+            high=np.array([1.0, 1.0], dtype=np.float32),
+            dtype=np.float32
+        )
+    
+    def _evaluate_allocation(self, target_allocation, liabArray):
+        """
+        Apply a target allocation and compute the resulting reward and state.
+        
+        Args:
+            target_allocation: Desired strategic asset allocation (sequence of length 2)
+            liabArray: Current liability and asset array
+            
+        Returns:
+            tuple: (reward, updated_pboArray, normalized_allocation)
+        """
+        csaa = np.asarray(target_allocation, dtype=np.float64)
+        if csaa.shape != (2,):
+            raise ValueError("Continuous action must provide two allocation values.")
+        
+        csaa = np.clip(csaa, 0.0, 1.0)
+        total_allocation = np.sum(csaa)
+        if total_allocation <= 0.0:
+            csaa = np.asarray(self.saa, dtype=np.float64)
+        else:
+            csaa = csaa / total_allocation
+
+        assetArray = liabArray[6:8]
+        iq = self.current_step
+        
+        # Extract macro factors for this period
+        thmf = tmpArrays[(self.sim_id*(n_dyn+1)):(self.sim_id*(n_dyn+1)+n_dyn+1),:].copy()
+        thmf[:,47] = thmf[:,47] * 100.0
+        thmf[:,46] = thmf[:,46] * 100.0
+        keep_cols = [0,1,2,3,4,5,6,7,8,26,27,46,47]
+        thmf = thmf[:,keep_cols]
+        
+        # Get projected benefit obligation (PBO) data
+        pboArray = liabAll[((self.sim_id-1)*n_dyn+iq-1),0:4]
+        liabNCF = pboArray[1] - pboArray[2]  # Net liability cash flow
+        
+        # Calculate returns for this period
+        cashRtns = np.array([thmf[iq,11], thmf[iq,9]/4])  # Cash returns for bonds and equity
+        priceRtns = np.array([thmf[iq,12], thmf[iq,10]])  # Price returns
+        
+        # Update asset values
+        cashCF = np.sum(np.multiply(assetArray, cashRtns/100))
+        assetArray = assetArray + np.multiply(assetArray, priceRtns/100)
+        newAssetValue = np.sum(assetArray)
+        
+        # Rebalancing: adjust assets to match target allocation
+        bsArray = np.multiply((cashCF+liabNCF+newAssetValue), csaa) - assetArray
+        assetArray = assetArray + bsArray
+        
+        # Update PBO array with new values
+        pboArray = np.insert(pboArray, 0, [self.sim_id, iq])
+        pboArray = np.append(pboArray, assetArray)
+        pboArray = np.append(pboArray, np.array([
+            np.sum(assetArray),                    # Total asset value
+            np.sum(assetArray)/pboArray[2],       # Funding ratio
+            np.sum(assetArray)-pboArray[2]        # Funding surplus
+        ]))
+        
+        # Calculate reward as change in funding ratio
+        reward = - np.sum(liabArray[6:8])/liabArray[2] + np.sum(pboArray[6:8])/pboArray[2]
+        
+        # Scale negative rewards more heavily
+        if reward < 0:
+            reward = neg_multiple * reward
+            
+        return reward, pboArray, csaa
+
+    def get_reward(self, action, liabArray):
+        """
+        Calculate reward for a continuous action representing target allocations.
+        
+        Args:
+            action: Target allocation for bonds and equities (length-2 array)
+            liabArray: Current liability and asset array
+            
+        Returns:
+            tuple: (reward, updated_pboArray, new_saa)
+        """
+        action_array = np.asarray(action, dtype=np.float64)
+        if action_array.ndim > 1:
+            action_array = action_array.reshape(-1)
+        
+        return self._evaluate_allocation(action_array, liabArray)
+
+
+class LDIWideDiscreteEnvironment(LDIEnvironment):
+    """
+    Discrete-action environment allowing larger allocation adjustments.
+    
+    Actions represent integer deltas from -10 to 10, corresponding to
+    -10% to +10% shifts toward bonds (and away from equity) in 1% increments.
+    """
+    
+    def __init__(self, sim_id=1, max_steps=40):
+        super().__init__(sim_id=sim_id, max_steps=max_steps)
+        self.action_space = spaces.Discrete(21)  # Actions encoded as 0..20 -> delta -10..10
+
+    def get_reward(self, action, liabArray):
+        """
+        Calculate reward for the wide discrete action set.
+        
+        Args:
+            action: Integer index (0..20) mapped to delta -10..10
+            liabArray: Current liability and asset array
+            
+        Returns:
+            tuple: (reward, updated_pboArray, new_saa)
+        """
+        assetArray = liabArray[6:8]
+        
+        # Map discrete action to allocation adjustment
+        delta = (action - 10) * 0.01  # -0.10 .. +0.10
+        csaa = np.asarray(self.saa, dtype=np.float64) + np.array([delta, -delta])
+        csaa = np.minimum(1.0, np.maximum(0.0, csaa))
+        
+        iq = self.current_step
+        
+        # Extract macro factors for this period
+        thmf = tmpArrays[(self.sim_id*(n_dyn+1)):(self.sim_id*(n_dyn+1)+n_dyn+1), :].copy()
+        thmf[:,47] = thmf[:,47] * 100.0
+        thmf[:,46] = thmf[:,46] * 100.0
+        keep_cols = [0,1,2,3,4,5,6,7,8,26,27,46,47]
+        thmf = thmf[:, keep_cols]
+        
+        # Get projected benefit obligation (PBO) data
+        pboArray = liabAll[((self.sim_id-1)*n_dyn+iq-1), 0:4]
+        liabNCF = pboArray[1] - pboArray[2]
+        
+        # Calculate returns for this period
+        cashRtns = np.array([thmf[iq,11], thmf[iq,9]/4])
+        priceRtns = np.array([thmf[iq,12], thmf[iq,10]])
+        
+        # Update asset values
+        cashCF = np.sum(np.multiply(assetArray, cashRtns/100))
+        assetArray = assetArray + np.multiply(assetArray, priceRtns/100)
+        newAssetValue = np.sum(assetArray)
+        
+        # Rebalancing: adjust assets to match target allocation
+        bsArray = np.multiply((cashCF + liabNCF + newAssetValue), csaa) - assetArray
+        assetArray = assetArray + bsArray
+        
+        # Update PBO array with new values
+        pboArray = np.insert(pboArray, 0, [self.sim_id, iq])
+        pboArray = np.append(pboArray, assetArray)
+        pboArray = np.append(pboArray, np.array([
+            np.sum(assetArray),
+            np.sum(assetArray)/pboArray[2],
+            np.sum(assetArray)-pboArray[2]
+        ]))
+        
+        # Calculate reward as change in funding ratio
+        reward = - np.sum(liabArray[6:8])/liabArray[2] + np.sum(pboArray[6:8])/pboArray[2]
+        
+        if reward < 0:
+            reward = neg_multiple * reward
+            
+        return reward, pboArray, csaa
+
