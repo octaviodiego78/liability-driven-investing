@@ -54,13 +54,13 @@ def main():
     for model_name, model_class in models.items():
         results_path = data_dir / f'{model_name}_results.csv'
         
-        if results_path.exists():
-            print(f"Skipping {model_name}: existing results found at '{results_path}'.")
-            results_df = pd.read_csv(results_path)
-        else:
-            print(f"Running {model_name}...")
-            model_results = run_experiment(model_class, data, num_episodes=500, num_sims=900)
-            results_df = save_results(model_results, model_name, data_dir)
+        #if results_path.exists():
+        #    print(f"Skipping {model_name}: existing results found at '{results_path}'.")
+        #    results_df = pd.read_csv(results_path)
+        #else:
+        print(f"Running {model_name}...")
+        model_results = run_experiment(model_class, data, num_episodes=5000, num_sims=900)
+        results_df = save_results(model_results, model_name, data_dir)
         
         results[model_name] = results_df
     
