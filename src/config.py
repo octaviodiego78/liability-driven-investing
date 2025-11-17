@@ -49,7 +49,7 @@ planliab = 10000000.  # initial plan liability
 
 # Experiment parameters
 n_sim = 1000  # number of simulations
-n_dyn = 60  # number of dynamic periods in quarter
+n_dyn = 39  # number of dynamic periods in quarter
 max_period = 40  # maximum number of periods for projection
 plan_asset = 10000000.0 * 1.0  # initial plan asset
 saa = [0.5, 0.5]  # sample asset allocation (AA-rated bond, large scale public equity)

@@ -70,8 +70,9 @@ class FCNNWithConstraint:
         thmf = thmf[:,keep_cols]
         pboArray = liabAll[((sim-1)*n_dyn+iq-1),0:4]
         liabNCF = pboArray[1] - pboArray[2]
-        cashRtns = np.array([thmf[iq,11],thmf[iq,9]/4])
-        priceRtns = np.array([thmf[iq,12],thmf[iq,10]])
+        idx = min(iq, thmf.shape[0] - 1) 
+        cashRtns = np.array([thmf[idx,11],thmf[idx,9]/4])
+        priceRtns = np.array([thmf[idx,12],thmf[idx,10]])
         cashCF = np.sum(np.multiply(assetArray,cashRtns/100))
         assetArray = assetArray+np.multiply(assetArray,priceRtns/100)
         newAssetValue = np.sum(assetArray)

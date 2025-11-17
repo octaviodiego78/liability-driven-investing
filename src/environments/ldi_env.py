@@ -153,8 +153,9 @@ class LDIEnvironment(gym.Env):
         liabNCF = pboArray[1] - pboArray[2]  # Net liability cash flow
         
         # Calculate returns for this period
-        cashRtns = np.array([thmf[iq,11], thmf[iq,9]/4])  # Cash returns for bonds and equity
-        priceRtns = np.array([thmf[iq,12], thmf[iq,10]])  # Price returns
+        idx = min(iq, thmf.shape[0] - 1) 
+        cashRtns = np.array([thmf[idx,11],thmf[idx,9]/4])  # Cash returns for bonds and equity
+        priceRtns = np.array([thmf[idx,12],thmf[idx,10]])  # Price returns
         
         # Update asset values
         cashCF = np.sum(np.multiply(assetArray, cashRtns/100))
@@ -329,8 +330,9 @@ class LDIContinuousEnvironment(LDIEnvironment):
         liabNCF = pboArray[1] - pboArray[2]  # Net liability cash flow
         
         # Calculate returns for this period
-        cashRtns = np.array([thmf[iq,11], thmf[iq,9]/4])  # Cash returns for bonds and equity
-        priceRtns = np.array([thmf[iq,12], thmf[iq,10]])  # Price returns
+        idx = min(iq, thmf.shape[0] - 1) 
+        cashRtns = np.array([thmf[idx,11],thmf[idx,9]/4])  # Cash returns for bonds and equity
+        priceRtns = np.array([thmf[idx,12],thmf[idx,10]])  # Price returns
         
         # Update asset values
         cashCF = np.sum(np.multiply(assetArray, cashRtns/100))
@@ -421,8 +423,9 @@ class LDIWideDiscreteEnvironment(LDIEnvironment):
         liabNCF = pboArray[1] - pboArray[2]
         
         # Calculate returns for this period
-        cashRtns = np.array([thmf[iq,11], thmf[iq,9]/4])
-        priceRtns = np.array([thmf[iq,12], thmf[iq,10]])
+        idx = min(iq, thmf.shape[0] - 1) 
+        cashRtns = np.array([thmf[idx,11],thmf[idx,9]/4])  # Cash returns for bonds and equity
+        priceRtns = np.array([thmf[idx,12],thmf[idx,10]])  # Price returns
         
         # Update asset values
         cashCF = np.sum(np.multiply(assetArray, cashRtns/100))
