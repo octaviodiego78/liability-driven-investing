@@ -1,0 +1,8 @@
+Model,Sharpe,Sortino,Calmar,Max DD (%),Final FR
+PPO continuous,0.22,0.364,0.07,-59.8,1.4087
+FCNN w/o const,0.106,0.1,0.04,-69.1,1.3948
+FCNN w/ const,0.141,0.16,0.06,-64.0,1.3885
+PPO wide discrete,0.157,0.218,0.06,-63.3,1.364
+LSTM w/ const,0.183,0.314,0.05,-68.7,1.3362
+LSTM w/o const,0.067,0.06,0.03,-79.0,1.308
+A2C,0.032,0.027,0.01,-89.7,1.1623
