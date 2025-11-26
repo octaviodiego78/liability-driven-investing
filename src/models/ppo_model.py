@@ -35,11 +35,12 @@ class BasePPOModel:
         tensorboard_log,
         n_envs=4,
         learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
-        n_epochs=10,
+        n_steps=20,
+        batch_size=32,
+        n_epochs=20,
         verbose=1,
-        max_steps=40
+        max_steps=40,
+        ent_coef=0.0
     ):
         """
         Initialize PPO model.
@@ -82,9 +83,11 @@ class BasePPOModel:
             batch_size=batch_size,
             n_epochs=n_epochs,
             gamma=gamma,
+            ent_coef=ent_coef,
             verbose=verbose,
             device="cpu",  # Use CPU for better performance with MLP
-            tensorboard_log=tensorboard_log
+            tensorboard_log=tensorboard_log,
+            policy_kwargs=dict(net_arch=dict(pi=[512, 512], vf=[512, 512])) 
         )
         self.model_path.parent.mkdir(parents=True, exist_ok=True)
     
@@ -182,11 +185,12 @@ class PPOModel(BasePPOModel):
         self,
         n_envs=4,
         learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
-        n_epochs=10,
+        #n_steps=2048,
+        #batch_size=64,
+        #n_epochs=10,
         verbose=1,
-        max_steps=40
+        max_steps=40,
+        ent_coef=0.05
     ):
         super().__init__(
             environment_cls=LDIEnvironment,
@@ -195,11 +199,12 @@ class PPOModel(BasePPOModel):
             tensorboard_log="./logs/ppo_tensorboard/",
             n_envs=n_envs,
             learning_rate=learning_rate,
-            n_steps=n_steps,
-            batch_size=batch_size,
-            n_epochs=n_epochs,
+            #n_steps=n_steps,
+            #batch_size=batch_size,
+            #n_epochs=n_epochs,
             verbose=verbose,
-            max_steps=max_steps
+            max_steps=max_steps,
+            ent_coef=ent_coef
         )
 
 
@@ -212,11 +217,12 @@ class PPOContinuousModel(BasePPOModel):
         self,
         n_envs=4,
         learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
-        n_epochs=10,
+        #n_steps=2048,
+        #batch_size=64,
+        #n_epochs=10,
         verbose=1,
-        max_steps=40
+        max_steps=40,
+        ent_coef=0.05
     ):
         super().__init__(
             environment_cls=LDIContinuousEnvironment,
@@ -225,11 +231,12 @@ class PPOContinuousModel(BasePPOModel):
             tensorboard_log="./logs/ppo_continuous_tensorboard/",
             n_envs=n_envs,
             learning_rate=learning_rate,
-            n_steps=n_steps,
-            batch_size=batch_size,
-            n_epochs=n_epochs,
+            #n_steps=n_steps,
+            #batch_size=batch_size,
+            #n_epochs=n_epochs,
             verbose=verbose,
-            max_steps=max_steps
+            max_steps=max_steps,
+            ent_coef=ent_coef
         )
 
 
@@ -242,11 +249,9 @@ class PPOWideDiscreteModel(BasePPOModel):
         self,
         n_envs=4,
         learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
-        n_epochs=10,
         verbose=1,
-        max_steps=40
+        max_steps=40,
+        ent_coef=0.05
     ):
         super().__init__(
             environment_cls=LDIWideDiscreteEnvironment,
@@ -255,10 +260,8 @@ class PPOWideDiscreteModel(BasePPOModel):
             tensorboard_log="./logs/ppo_wide_discrete_tensorboard/",
             n_envs=n_envs,
             learning_rate=learning_rate,
-            n_steps=n_steps,
-            batch_size=batch_size,
-            n_epochs=n_epochs,
             verbose=verbose,
-            max_steps=max_steps
+            max_steps=max_steps,
+            ent_coef=ent_coef
         )
 
